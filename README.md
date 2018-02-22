@@ -120,7 +120,7 @@ python eval.py --checkpoint_path ./tflog/full_run/01_224 --num_classes 200 --lab
 python export_inference_graph.py --model_name mobilenet_v1 --image_size 224 --batch_size 1 --num_classes 200 --ckpt_path ./tflog/full_run/01_224/model.ckpt-252435 --output_ckpt_path ./output/full_run/01_224/network
 ```
 
-###Transfer your network.meta and weights files to your machine where NCS SDK is installed
+### Transfer your network.meta and weights files to your machine where NCS SDK is installed
 
 6. Compile the network (e.g. compiled.graph)
 ```

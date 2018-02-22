@@ -1,159 +1,81 @@
-# NCS-CHALLENGE-SUBMISSION
-# TopCoder NCS Challenge Submission: Instructions on how to train the network, export the trained network, compile the network, and how to make inferences on the Movidius NCS using the compiled graph 
-https://developer.movidius.com/competition
+![alt text](https://www.sewp.nasa.gov/images/ch_logos/ch_54/ch_54.png "Technica")
 
-Code used to train and export the network is in vast majority from the work of [Technica-Corporation/TF-Movidius-Finetune](https://github.com/Technica-Corporation/TF-Movidius-Finetune)
+# Introduction
 
-Very minor changes were made to this code, for simplicity it's provided in this repository.
+The purpose of this project is to serve as a workspace for developers interested in fine-tuning or applying transfer learning models defined in the Tensorflow Slim API using custom images converted to a TFRecord Format. This project is motivated by problems in converting models and our unexplained results when a Tensorflow model is converted to run on a Movidius™ Neural Compute Stick using the Tensorflow For Poets](https://github.com/googlecodelabs/tensorflow-for-poets-2) code lab and other resources officially provided on the Tensorflow repository.
 
-The network implementation and Checkpoints used were taken from the MobileNet TensorFlow slim implementations [models/research/slim/nets/mobilenet_v1.md](https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md).
+We've encountered several issues with converting Tensorflow models to be imported using the Movidius API. Most of these issues can be alleviated by exporting an inference metagraph file with a batch_size of 1 in the Placeholder input. A remaining issue is using the metagraph file exported from the training script results in an undefined shape of the Placeholder (e.g. shape of [?, 224, 224, 3]) or a non-one batch size (e.g. [8, 224, 224, 3]) which is not compatible with the MVNCSDK Compile Tool. We found that exporting a separate metagraph using the freeze checkpoint tool to freeze the graph to constants allows us to export a compatible version of the model that successfully compiled via the Movidius Compile Tool. In general, we've found that the key is to define a new inference GraphDef structure without any training/evaluation operations, a new default Placeholder with batch-size 1, and an output_layer that interfaces with the Predictions end_point used often in the Slim API. We've tried doing a similar thing with the vanilla Tensorflow API, but have had issues so far when using the MVNC tool to compile the graphs defined in vanilla Tensorflow, the process errors out. We have reason to believe that the TF Slim API is the optimal way to define models to be compatible with Movidius.
 
-Added to the NCS Challenge dataset, the ImageNet 2011 Fall Release relevant sysnets were also used [ImageNet Large Scale Visual Recognition Challenge. IJCV, 2015.](https://arxiv.org/abs/1409.0575)
-
-## Prerequisites
-
-This code example requires that the following components are available:
-1. <a href="https://developer.movidius.com/buy" target="_blank">Movidius Neural Compute Stick</a>
-2. <a href="https://developer.movidius.com/start" target="_blank">Movidius Neural Compute SDK</a>
-
-3. The training environment used to obtain the reported results 
-AWS EC2 p2.xlarge instance with "Deep Learning AMI with Source Code (CUDA 8, Ubuntu)", replacing CUDA 8 library with CUDA 6 to support TF=1.3 
-
-## Mobilenet Accuracy Test Results - 80k dataset - Fine Tune all layers.
-
-| Model | Width Multiplier | Image size | Preprocessing | Accuracy-Top1 |Accuracy-Top5 | Log loss | Image Time(ms) | Score |
-|--------|:---------:|:------:|:------:|:------:|:------:|:------:|:------:|:------:|
-| MobileNet |1.0 |224 |Same as Inception |79.94% |95.81% |1.89 |41.52 |908890.88 |
-| MobileNet |1.0 |192 |Same as Inception |78.97% |95.42% |2.04 |30.12 |905281.95 |
-| MobileNet |1.0 |160 |Same as Inception |77.24% |94.61% |2.34 |23.85 |894441.09 |
-| MobileNet |0.75 |224 |Same as Inception |76.29% |94.24% |2.49 |26.97 |886131.23 |
-| MobileNet |0.75 |192 |Same as Inception |74.97% |93.50% |2.75 |20.80 |878126.80 |
-| MobileNet |0.75 |160 |Same as Inception |74.02% |93.06% |2.92 |18.53 |872651.55 |
-| MobileNet |0.50 |160 |Same as Inception |67.50% |89.37% |4.27 |11.91 |824833.36 |
+~~When we have successfully converted Tensorflow to the Movidius, we’ve observed a significant accuracy dropoff running the converted model on the Movidius Neural Compute Stick. Our internal test sets have shown up to 19% drop on a binary classification problem on 3 color channel images. This is described in the Issues section below.~~
 
 
-## Mobilenet Accuracy Test Results - 80k dataset, Fine Tuning only fully connected layers. 
+## Updates
++ (1/5/18) Added transfer learning to scripts as opposed to fine-tuning. User can define to select the last Logits/AuxLogits layer to train instead of the entire model using the --trainable_variables argument in train.py. (Note: this hasn't yielded any different results when porting to MVNC)
++ (1/15/18) The latest [NCSDK release (1.12.00.01)](https://github.com/movidius/ncsdk/releases/tag/v1.12.00.01) has bug fixes. We've tested the new NCSDK + tools and the issues we've seen with the MobileNet architecture are resolved. See their release bug fixes for more details. 
 
-| Model | Width Multiplier | Image size | Preprocessing | Accuracy-Top1 |Accuracy-Top5 | Log loss | Image Time(ms) | Score |
-|--------|:---------:|:------:|:------:|:------:|:------:|:------:|:------:|:------:|
-|MobileNet |1.0 |224 |Same as Inception |70.09% |91.17% |3.63 |40.52 |825242.58 |
+# Requirements
++ Dependencies listed in requirements.txt
++ Dataset directory of images to use stored in jpg format where each subfolder of the master folder represents an image class
++ Generated labels file from tfrecord conversion process
 
+## To Do:
+- [ ] Define a new custom CNN model using TF-Slim API and converting to Movidius model
+- [ ] Investigate drop-off in accuracy when running the converted model on the Movidius Neural Compute Stick (MobileNet Arch.)
+- [ ] Look into the Movidius' TensorflowParser.py and look into compatibility with models defined in native Tensorflow
+- [ ] Investigate is_training parameter (related to batch normalization) - odd behavior displayed when running eval scripts with different batch size, even though normalization should be the same with is_training=False
+- [ ] Try different model architecture outside of MobileNet
 
-## Shallow MobileNet Accuracy Test Results - 80k dataset. To make MobileNet shallower, 3 layers of separable filters with feature size 14 × 14 × 512 are removed.
+## Example Workflow
 
-| Model | Width Multiplier | Image size | Preprocessing | Accuracy-Top1 |Accuracy-Top5 | Log loss | Image Time(ms) | Score |
-|--------|:---------:|:------:|:------:|:------:|:------:|:------:|:------:|:------:|
-| Shallow MobileNet |1.0 |224 |Same as Inception |55.04% |80.40% |7.44 |31.75 |652383.53 |
+Current workflow looks like this:
+1. Convert data to tfrecord format using preprocess_img_dir/create_tfrecord.py
+2. Use train.py to train on train split of data
+3. Use eval.py to evaluate on validation split of data
+4. Iterate on steps 2-3 until desired loss/accuracy is achieved
+5. Export inference graph of desired model architecture defined in nets folder
+	a. We've used two different constructs available here, one is getting the inference graph then exporting it as a meta file along with the checkpoint using slim.restore_from_ckpt. The resulting meta file is sufficient to use with the graph tool
+	b. The other way we've tested is exporting just the empty inference graph only using import_graph_def then freezing it using the tool
+6. (If 5b) Freeze graph using inference graph metadef and desired training checkpoint
+7. (If 5b) Retest frozen graph on subsample of images, make sure model still persists
+8. Use either meta file or frozen graph and feed it in to [mvNCCompile](https://github.com/movidius/ncsdk/blob/master/docs/tools/compile.md) tool provided with Movidius to convert Tensorflow graph
 
+### Sample Usage
+Not going to go into too much detail of the usage, since this is more of a workspace so a good base knowledge of Tensorflow (& Slim API) should be sufficient for you to navigate around the scripts.
 
-### Prepare data
+Convert -> Train -> Eval -> Export -> mvNCProfile/mvNCCheck/mvNCCompile
 
-1. Decompress all the sysnets into a single training data directory. An example on how to do it can be found next; please make sure to update the location where all the sysnets.tar files are located.
-```
-python untar_sysnets.py
-```
- 
-2. Create a new extended_ground_truth.csv file. Make sure to update the location where Imagenet Synsets directory is located.
-```
-python extended_ground_truth.py
-```
-
-3  . Move images under a directories tree, where each directory represents a class
 
 ```
-MoveFilesIntoCategoriesAll.ipynb
+python train.py --dataset_dir=data/processed/tfrecord/ --labels_file=labels.txt --num_epochs 15 --image_size 224 --checkpoint_path=./models/checkpoints/mobilenet_v1_1.0_224.ckpt --checkpoint_exclude_scopes="MobilenetV1/Logits, MobilenetV1/AuxLogits" --log_dir=/tmp/test/ --batch_size 16 --preprocessing inception --model mobilenet_v1
 ```
 ```
-root/
-                  |->training/
-                     |->1/
-                     |     |-> 00****1.JPEG
-                     |     L-> 00****n.JPEG
-                     |->2/
-                     |     |-> 00****1.JPEG
-                     |     L-> 00****n.JPEG
-                     .
-                     .
-                     .
-                     L->200/
-                           |-> 00****1.JPEG
-                           L-> 00****n.JPEG
+python eval.py --checkpoint_path ../tf-train-slim/trainlogs/1.2/run_4/ --num_classes 2 --labels_file labels.txt --dataset_dir ~/data/ --file_pattern data_%s_*.tfrecord --file_pattern_for_counting data --batch_size 2
+```
+```
+python export_inference_graph.py --model_name inception_v3 --image_size 224 --batch_size 1 --ckpt_path ./trainlogs//model.ckpt-1560 --output_ckpt_path ./output/tf-mvnc
+```
+```
+python export_inference_graph.py --model_name inception_v3 --is_training True --batch_size 1 --num_classes 2 --output_file ./trainlogs/inference_graph.def --image_size 299
+```
+```
+python freeze_graph.py --input_node_names input --output_node_names final_result --input_binary True --input_graph inference_graph.def --input_checkpoint test.ckpt --output_graph frozen-inf.pb
 ```
 
-### Clean the dataset
 
-4. Prepare images data. It's common to find errors where images cannot be read and/or rehsaped, resulting in an error when trying to transform them into tfrecords.
-    The following Jupyter notebook can be used to find all the conflicting files, once found you can delete them from the dataset.
-```
-FindCorruptedFiles.ipynb
-```
+## Issues
+~~1. We've observed a significant accuracy dropoff on our internal test sets when converting from Tensorflow to the Movidius API (up to 19% drop on a binary classification problem on 3 color channel images). As of now, we're unsure if it's an issue with running in single precision, or something incorrect with the conversion process, or the model architecture we're using (MobileNet 1.0 224).
+	+ We've used the built in inspect_checkpoint function in Tensorflow to verify that the checkpoint files are the same as the ones originally downloaded / used in the ncappzoo.
+	+ In all our tests whether the graph has been loaded from a checkpoint (meta, data, index files) or frozen for inference (protobuf format), accuracy is stable on our validation set.
+	+ We've validated that the graph structure is the same as some of the Mobilenet examples provided in the NCAppZoo using the [MVNCProfile](https://github.com/movidius/ncsdk/blob/master/docs/tools/profile.md) tool
+	+ Our suspicion is it's something with the weights that the parser isn't translating 1-to-1.
+	+ We've also looked into ensuring the preprocessing is similar from train/test time, so we've only done simple scaling [0, 1] and mean subtraction.~~
+~~2. Export inference graph not working using model checkpoint and InceptionV3 architecture (works for MobileNet)~~
 
-### Train the network
+### Solutions Tried w/o Success
+Here's a few solutions we've tried out without much success
++ Using the retrain script in the Tensorflow for poets tutorial to produce a frozen model and convert to Movidius
++ Created a simple 1-layer CNN defined in Native Tensorflow trained on MNIST and converted to Movidius, saw a drop from 95% accuracy to 80% accuracy on the test set
 
-1. Convert data into tfrecord. Split the data in train and validation sets by passing the value of the validation_size, once your network is tuned, you can use all the data for training (e.g. --validation_size 0.01).
-```
-python preprocess_img_dir/create_tfrecord.py --validation_size 0.3
-```
 
-### Select what type of training you want, depending on the accuracy, and inference time needs
-
-2.1 Train the network, Fine Tune all layers
-```
-python train.py --dataset_dir=/home/ubuntu/movidius/train --labels_file=/home/ubuntu/movidius/train/labels.txt --num_epochs 15 --image_size 224 --num_classes 200 --checkpoint_path=./models/checkpoints/mobilenet/01_224/mobilenet_v1_1.0_224.ckpt --checkpoint_exclude_scopes="MobilenetV1/Logits, MobilenetV1/AuxLogits" --log_dir=./tflog/full_run/01_224 --batch_size 16 --preprocessing inception --model_name mobilenet_v1 --tb_logdir=./TB_logdir/full_run/01_224
-```
-
-2.2 Train the network, Fine Tune only fully connected layers (Reduce training time by 50% or more at expense of accuracy)
-```
-python train.py --dataset_dir=/home/ubuntu/movidius/train --labels_file=/home/ubuntu/movidius/train/labels.txt --num_epochs 15 --image_size 224 --num_classes 200 --checkpoint_path=./models/checkpoints/mobilenet/01_224/mobilenet_v1_1.0_224.ckpt --checkpoint_exclude_scopes="MobilenetV1/Logits, MobilenetV1/AuxLogits" --log_dir=./tflog/full_run/01_224_FT --batch_size 16 --preprocessing inception --model_name mobilenet_v1 --tb_logdir=./TB_logdir/full_run/01_224_FT --trainable_scopes="MobilenetV1/Logits, MobilenetV1/AuxLogits"
-```
-
-2.3 Train the shallow network (As discussed in the Mobilenet paper, you get better results by using narrow models)
-```
-python train.py --dataset_dir=/home/ubuntu/movidius/train --labels_file=/home/ubuntu/movidius/train/labels.txt --num_epochs 15 --image_size 224 --num_classes 200 --log_dir=./tflog/full_run/custom/01_224 --batch_size 16 --preprocessing inception --model_name mobilenet_v1_custom --tb_logdir=./TB_logdir/full_run/custom/01_224
-```
-
-3. Visualize/Monitor your training accuracy and losses in TensorBoard
-```
-tensorboard --logdir ./TB_logdir/full_run/01_224
-```
-
-4. Evaluate the network
-```
-python eval.py --checkpoint_path ./tflog/full_run/01_224 --num_classes 200 --labels_file /home/ubuntu/movidius/train/labels.txt --dataset_dir /home/ubuntu/movidius/train --file_pattern movidius_%s_*.tfrecord --file_pattern_for_counting movidius --batch_size 16 --preprocessing_name inception --model_name mobilenet_v1 --image_size 224
-```
-
-5. Export the network
-```
-python export_inference_graph.py --model_name mobilenet_v1 --image_size 224 --batch_size 1 --num_classes 200 --ckpt_path ./tflog/full_run/01_224/model.ckpt-252435 --output_ckpt_path ./output/full_run/01_224/network
-```
-
-###Transfer your network.meta and weights files to your machine where NCS SDK is installed
-
-6. Compile the network (e.g. compiled.graph)
-```
-mvNCCompile network.meta -w network -s 12 -in input -on output -o compiled.graph
-```
-
-7. Profile the network, (e.g. FLOPS, bandwidth, and processing time per layer)
-```
-mvNCProfile -in input -on output -s 12 -is 224 224 network.meta
-```
-
-8. Use the compiled.graph to make inferences. Make sure to update your path settings to point to the correct directories where your copiled.graph is stored. Also make sure to assign a name and location where the resulting file with the image inferences will be placed.
-```
-python inference.py path/to/datadir	
-```
-
-## TODO
-- [ ] Train on different network architectures (e.g. DenseNet). Training and compiling was done, not unsuccessfully used for inference. 
-- [ ] Support fot multi stick inference (e.g. 3 stick, inference time/3)
-- [ ] Report results 
-
-## Reference
-[MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications](https://arxiv.org/abs/1704.04861)
-
-[Technica-Corporation/TF-Movidius-Finetune](https://github.com/Technica-Corporation/TF-Movidius-Finetune)
-
-[models/research/slim/nets/mobilenet_v1.md](https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md).
-
-[Olga Russakovsky*, Jia Deng*, Hao Su, Jonathan Krause, Sanjeev Satheesh, Sean Ma, Zhiheng Huang, Andrej Karpathy, Aditya Khosla, Michael Bernstein, Alexander C. Berg and Li Fei-Fei. (* = equal contribution) ImageNet Large Scale Visual Recognition Challenge. IJCV, 2015.](https://arxiv.org/abs/1409.0575)
+## Credit
+Credits to Kwotsin's projects for serving as basis to navigate around TF-Slim API. Available [here](https://github.com/kwotsin/create_tfrecords) and [here](https://github.com/kwotsin/transfer_learning_tutorial). For the most we're using code pulled from his projects and the slim folder in the Tensorflow [models repo](https://github.com/tensorflow/models/), made some personal taste modifications and necessary changes to make it exportable to the Movidius NCS. Also the various documentation the Movidius team has [provided](https://github.com/movidius/ncsdk).

@@ -1,7 +1,3 @@
-# NCS-CHALLENGE-SUBMISSION
-# TopCoder NCS Challenge Submission: Instructions on how to train the network, export the trained network, compile the network, and how to make inferences on the Movidius NCS using the compiled graph 
-https://developer.movidius.com/competition
-
 Code used to train and export the network is in vast majority from the work of [Technica-Corporation/TF-Movidius-Finetune](https://github.com/Technica-Corporation/TF-Movidius-Finetune)
 
 Very minor changes were made to this code, for simplicity it's provided here.

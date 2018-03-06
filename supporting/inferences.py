@@ -29,7 +29,7 @@ import os.path
 # paths settings (see also data argument parameter)
 INFERENCE_FILE = "../inferences.csv"
 GRAPH_FILE = "../compiled.graph"
-EXAMPLE_ONLY = True
+EXAMPLE_ONLY = False
 LABELS_FILE = "./labels.txt"
 if EXAMPLE_ONLY:
     DATA_DIR = "training"
